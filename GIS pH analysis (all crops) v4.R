@@ -572,6 +572,12 @@ Dat_model <- Dat_main %>%
   left_join(Dat_temp, by =  c("x", "y")) %>%
   left_join(Dat_Nrate, by = "Crop")
 
+# fix one row where Wet_days_mean couldn't be joined (impute from cell next door)
+Dat_model <- Dat_model %>%
+  mutate(Wet_days_mean = ifelse(is.na(Wet_days_mean),
+                                lag(Wet_days_mean),
+                                Wet_days_mean))
+
 # function to calculate OC percentage based on C (t/ha) and BD (kg / m2)
 OC_perc <- function(BD_kg_m2, C_t_ha){
   C_kg_m2 <- C_t_ha * 10^3 * 10^-4 * 1 / 0.3
@@ -592,56 +598,59 @@ Dat_model <- Dat_model %>%
 # model prepared in script [Hillier-Cornulier N2O model.R]
 load(find_onedrive(dir = data_repo, path = "Jon H N2O paper/H-C N2O model lite.RData"))
 
+# method from TC to negate study effect
+# METHOD 1: predict using the studyID with random effect estimate closest to zero (approximate). 
+# finding the studyID with random effect estimate closest to zero
+RE.sub <- grep("s(studyID.f)", jamM15c$term.names, fixed= T) # identify which of the coefficients are random effects
+RE.names <- levels(jamM15c$model$studyID.f) # studyID names of the random effects
+min_id <- RE.names[abs(jamM15c$coefficients[RE.sub]) == min(abs(jamM15c$coefficients[RE.sub]))] # returns " 53.42  -7.52200310 41220052003-10-152004-11-30"
+
+
 # we need base + fertilised predictions for initial pH + optimal pH
 # i.e. 4x predictions
+# revised 27/02/2020 following TC observation that pH-mediated mitigation of naturally-occuring N2O is still a management effect
+# in other words, we're not just interested in fertiliser induced N2O and we can drop the 2 baseline predictions (Fert01 = 0)
+# only 2x predictions required
 
 # baseline N2O emissions, inital pH
-ipH_base <- data.frame(Fert01 = 0, lowNO3 = 0, highNO3 = 0, Grasslands = Dat_model$Is_grass, 
-                       pH = Dat_model$pH, Clay = Dat_model$Clay, SOC = Dat_model$C_perc_initial,
-                       WetDays.exp = Dat_model$Wet_days_mean, DegDays.exp= Dat_model$Degree_days,
-                       N.rate = Dat_model$Nrate, studyID.f= " 32.58 119.702007 8  8120082007-08-152007-11-04") # some random studyID.f (the first one)
-ipH_base <- df.M15c.complete(ipH_base)
-Dat_model <- Dat_model %>%
-  mutate(ipH_base_pred = exp(predict(jamM15c, newdata = ipH_base)))
+#ipH_base <- data.frame(Fert01 = 0, lowNO3 = 0, highNO3 = 0, Grasslands = Dat_model$Is_grass, 
+#                       pH = Dat_model$pH, Clay = Dat_model$Clay, SOC = Dat_model$C_perc_initial,
+#                       WetDays.exp = Dat_model$Wet_days_mean, DegDays.exp= Dat_model$Degree_days,
+#                       N.rate = Dat_model$Nrate, studyID.f= " 32.58 119.702007 8  8120082007-08-152007-11-04") # some random studyID.f (the first one)
+#ipH_base <- df.M15c.complete(ipH_base)
+#Dat_model <- Dat_model %>%
+#  mutate(ipH_base_pred = exp(predict(jamM15c, newdata = ipH_base)))
 
 # fertiliser-induced N2O emissions, initial pH
-ipH_fert <- data.frame(Fert01 = 1, lowNO3 = 0, highNO3 = 0, Grasslands = Dat_model$Is_grass, 
+ipH_fert <- data.frame(Fert01 = 1, lowNO3 = 0, highNO3 = 1, Grasslands = Dat_model$Is_grass, 
                        pH = Dat_model$pH, Clay = Dat_model$Clay, SOC = Dat_model$C_perc_initial,
                        WetDays.exp = Dat_model$Wet_days_mean, DegDays.exp= Dat_model$Degree_days,
-                       N.rate = Dat_model$Nrate, studyID.f= " 32.58 119.702007 8  8120082007-08-152007-11-04") # some random studyID.f (the first one)
+                       N.rate = Dat_model$Nrate, studyID.f= min_id) # min (~0) random effect studyID.f
 ipH_fert <- df.M15c.complete(ipH_fert)
 Dat_model <- Dat_model %>%
-  mutate(ipH_fert_pred = exp(predict(jamM15c, newdata = ipH_fert)))
+  mutate(ipH_fert_pred = exp(predict(jamM15c, newdata = ipH_fert)) - 1)
 
 # baseline N2O emissions, final pH
-fpH_base <- data.frame(Fert01 = 0, lowNO3 = 0, highNO3 = 0, Grasslands = Dat_model$Is_grass, 
-                       pH = Dat_model$Target_pH, Clay = Dat_model$Clay, SOC = Dat_model$C_perc_final,
-                       WetDays.exp = Dat_model$Wet_days_mean, DegDays.exp= Dat_model$Degree_days,
-                       N.rate = Dat_model$Nrate, studyID.f= " 32.58 119.702007 8  8120082007-08-152007-11-04") # some random studyID.f (the first one)
-fpH_base <- df.M15c.complete(fpH_base)
-Dat_model <- Dat_model %>%
-  mutate(fpH_base_pred = exp(predict(jamM15c, newdata = fpH_base)))
+#fpH_base <- data.frame(Fert01 = 0, lowNO3 = 0, highNO3 = 0, Grasslands = Dat_model$Is_grass, 
+#                       pH = Dat_model$Target_pH, Clay = Dat_model$Clay, SOC = Dat_model$C_perc_final,
+#                       WetDays.exp = Dat_model$Wet_days_mean, DegDays.exp= Dat_model$Degree_days,
+#                       N.rate = Dat_model$Nrate, studyID.f= " 32.58 119.702007 8  8120082007-08-152007-11-04") # some random studyID.f (the first one)
+#fpH_base <- df.M15c.complete(fpH_base)
+#Dat_model <- Dat_model %>%
+#  mutate(fpH_base_pred = exp(predict(jamM15c, newdata = fpH_base)))
 
 # fertiliser-induced N2O emissions, final pH
-fpH_fert <- data.frame(Fert01 = 1, lowNO3 = 0, highNO3 = 0, Grasslands = Dat_model$Is_grass, 
+fpH_fert <- data.frame(Fert01 = 1, lowNO3 = 0, highNO3 = 1, Grasslands = Dat_model$Is_grass, 
                        pH = Dat_model$Target_pH, Clay = Dat_model$Clay, SOC = Dat_model$C_perc_final,
                        WetDays.exp = Dat_model$Wet_days_mean, DegDays.exp= Dat_model$Degree_days,
-                       N.rate = Dat_model$Nrate, studyID.f= " 32.58 119.702007 8  8120082007-08-152007-11-04") # some random studyID.f (the first one)
+                       N.rate = Dat_model$Nrate, studyID.f= min_id) # min (~0) random effect studyID.f
 fpH_fert <- df.M15c.complete(fpH_fert)
 Dat_model <- Dat_model %>%
-  mutate(fpH_fert_pred = exp(predict(jamM15c, newdata = fpH_fert)))
+  mutate(fpH_fert_pred = exp(predict(jamM15c, newdata = fpH_fert)) - 1)
 
-
-# calculate EFs x 2 (initial + final pH)
+# calculate direct N2O emissions difference in kg CO2-eq / ha
 Dat_model <- Dat_model %>%
-  mutate(EF_initial = (ipH_fert_pred - ipH_base_pred) / Nrate,
-         EF_final = (fpH_fert_pred - fpH_base_pred) / Nrate)
-
-# calculate direct N2O emissions and difference in kg CO2-eq / ha
-Dat_model <- Dat_model %>%
-  mutate(iN2O = Nrate * EF_initial * 44/28,
-         fN2O = Nrate * EF_final * 44/28,
-         cN2O_CO2eq = (fN2O - iN2O) * 298)
+  mutate(cN2O_CO2eq = (fpH_fert_pred - ipH_fert_pred) * 44/28 * 298)
 
 qplot(Dat_model$cN2O_CO2eq)
 mean(Dat_model$cN2O_CO2eq, na.rm = T)
@@ -650,7 +659,7 @@ mean(Dat_model$cN2O_CO2eq, na.rm = T)
 # add N2O predictions to main data and scale
 
 Dat_main <- Dat_main %>%
-  mutate(GHGmit_N2O = abs(as.numeric(Dat_model$cN2O_CO2eq) * 10^-3))
+  mutate(GHGmit_N2O = -(as.numeric(Dat_model$cN2O_CO2eq) * 10^-3))
 
 # calculate GHG balance in tonnes / ha
 Dat_main <- Dat_main %>%
