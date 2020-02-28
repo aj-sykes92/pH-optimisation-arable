@@ -23,6 +23,10 @@ Dat_model <- Dat_model %>%
   dummy_cols() %>%
   select(Sand, Clay, BD, OC, pH, Yield_tha, Crop_barley:Crop_wheat, has_ce_abatement) # dropping Crop and Clay variables
 
+# switch crops to logical
+Dat_model <- Dat_model %>%
+  mutate_at(vars(Crop_barley:Crop_wheat), funs(as.logical(.)))
+
 # encode y as factor
 Dat_model <- Dat_model %>%
   mutate(has_ce_abatement = as.factor(has_ce_abatement))

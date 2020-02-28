@@ -443,7 +443,7 @@ Dat_main %>% filter(GHG_balance <= -0.1) %>% pull(Abatement) %>% sum() * 10^-3
 Dat_main %>% filter(GHG_balance <= -0.1) %>% mutate(Abatement = Abatement + Limedir_GHG * Area_ha) %>% pull(Abatement) %>% sum() * 10^-3
 
 # abatement in kt w/ pessimistic assumptions (assume no crop EI offset)
-Dat_main %>% filter(GHG_balance <= -0.1) %>% mutate(Abatement = Abatement - GHGmit_yield * Area_ha) %>% pull(Abatement) %>% sum() * 10^-3
+Dat_main %>% filter(GHG_balance <= -0.1) %>% mutate(Abatement = Abatement - (GHGmit_yield + GHGmit_N2O) * Area_ha) %>% pull(Abatement) %>% sum() * 10^-3
 
 ################
 # costs and benefits
@@ -475,7 +475,7 @@ below_scc / (Dat_main %>% filter(GHG_balance <= -0.1) %>% pull(Abatement) %>% su
 
 # % of total uk emissions and uk agricultural emissions
 abatement_Mt <- Dat_main %>% filter(GHG_balance <= -0.1, MAC <= SCC) %>% pull(Abatement) %>% sum() * 10^-6
-abatement_Mt / 45.59 * 10^2 # % of ag emissions
+abatement_Mt / 45.59 * 10^2 # % of ag emissions from 2017 GHG inventory excel
 
 # abatement fractions by DA
 Dat_main %>%
