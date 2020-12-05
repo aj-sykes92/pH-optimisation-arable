@@ -284,7 +284,7 @@ Dat_main %>% ggplot(aes(x = Crop, y = Yield_increase, fill = DA)) +
 ggsave(find_onedrive(dir = data_repo, path = "Output plots/Fractional yield increase.png"), width = 8, height = 7)
 
 ############################
-# yield increase columns
+# production increase columns
 ############################
 order <- Dat_main %>%
   filter(GHG_balance <= -0.1) %>%
@@ -294,14 +294,24 @@ order <- Dat_main %>%
   arrange(Yield_inc_t) %>%
   pull(Crop)
 
-Dat_main %>%
+Dat_prodinc <- Dat_main %>%
   filter(GHG_balance <= -0.1) %>%
-  mutate(Yield_inc_kt = Yield_tha * (Yield_increase - 1) * Area_ha * 10^-3) %>%
+  mutate(Prod_inc_kt = Yield_tha * (Yield_increase - 1) * Area_ha * 10^-3) %>%
   group_by(Crop, DA) %>%
-  summarise(Yield_inc_kt = sum(Yield_inc_kt)) %>%
-  ungroup() %>%
+  summarise(Prod_inc_kt = sum(Prod_inc_kt), .groups = "drop") %>%
+  group_by(Crop) %>%
+  mutate(tot_inc = sum(Prod_inc_kt))
+
+# for caption --- crops w/ less than 5 kt production increase, removed from plot at request of reviewer #1
+Dat_prodinc %>%
+  filter(tot_inc < 5) %>%
+  distinct(Crop)
+
+# plot
+Dat_prodinc %>%
+  filter(tot_inc >= 5) %>%
   mutate(Crop = factor(Crop, levels = order)) %>%
-  ggplot(aes(x = Crop, y = Yield_inc_kt)) +
+  ggplot(aes(x = Crop, y = Prod_inc_kt)) +
   geom_col(aes(fill = DA), position = position_stack(), colour = "black") +
   labs(x = "", y = "Additional crop production (kt)", fill = "") +
   scale_fill_brewer(palette = "Blues") +
